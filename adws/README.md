@@ -167,22 +167,56 @@ uv run adw_triggers/trigger_cron.py
 
 ### adw_triggers/trigger_webhook.py - GitHub Webhook Server
 
-Receives real-time GitHub events for instant processing.
+Receives real-time GitHub events for instant processing with advanced port management and ngrok tunnel support.
 
 ```bash
 # Start webhook server (default port 8001)
 uv run adw_triggers/trigger_webhook.py
 
-# Configure GitHub webhook:
-# URL: https://your-server.com/gh-webhook
-# Events: Issues, Issue comments
+# Start on custom port
+uv run adw_triggers/trigger_webhook.py --port 8002
 
-# Setup a proxy server to forward requests to the webhook server
+# Start with ngrok tunnel (requires NGROK_AUTHTOKEN)
+uv run adw_triggers/trigger_webhook.py --tunnel
+
+# Use convenience script for safe startup
+./scripts/start_webhook.sh
 ```
+
+**New Features:**
+- **Port Conflict Resolution**: Automatically detects and resolves port conflicts
+- **Ngrok Tunnel Integration**: Expose local webhook to internet for GitHub
+- **Graceful Shutdown**: Properly cleanup resources on exit
+- **Auto-restart**: Automatic recovery from crashes
+- **Enhanced Monitoring**: Detailed status and metrics endpoints
 
 **Endpoints:**
 - `/gh-webhook` - Receives GitHub events
-- `/health` - Health check endpoint
+- `/health` - Comprehensive health check
+- `/status` - Server metrics and tunnel information
+
+**Port Management:**
+If port 8001 is in use, the server will:
+1. Attempt to kill the existing process
+2. Find an alternative port if needed
+3. Display clear status messages
+
+**Ngrok Integration:**
+```bash
+# Install ngrok (if not already installed)
+brew install ngrok           # macOS
+snap install ngrok           # Ubuntu
+choco install ngrok          # Windows
+
+# Set authentication token (get from https://dashboard.ngrok.com)
+export NGROK_AUTHTOKEN="your_token_here"
+
+# Optional: Set custom domain
+export NGROK_DOMAIN="your-domain.ngrok.io"
+
+# Start with tunnel
+uv run adw_triggers/trigger_webhook.py --tunnel
+```
 
 ## How ADW Works
 
@@ -285,6 +319,33 @@ export GITHUB_PAT=$(gh auth token)
 cat agents/*/sdlc_planner/raw_output.jsonl | tail -1 | jq .
 ```
 
+**"Port already in use"**
+```bash
+# Kill existing webhook processes
+./scripts/kill_trigger_webhook.sh
+
+# Or specify alternative port
+uv run adw_triggers/trigger_webhook.py --port 8002
+
+# Check what's using a port
+lsof -i :8001
+```
+
+**"Ngrok tunnel failed"**
+```bash
+# Check ngrok installation
+ngrok version
+
+# Verify auth token
+echo $NGROK_AUTHTOKEN
+
+# Kill existing ngrok processes
+killall ngrok
+
+# Test ngrok manually
+ngrok http 8001
+```
+
 ### Debug Mode
 ```bash
 export ADW_DEBUG=true
@@ -352,6 +413,60 @@ adw_modules/
 - Set up branch protection rules
 - Require PR reviews for ADW changes
 - Monitor API usage and set billing alerts
+
+## Production Webhook Deployment
+
+### Best Practices
+1. **Use HTTPS**: Always use SSL/TLS in production
+2. **Secret Validation**: Verify GitHub webhook signatures
+3. **Rate Limiting**: Implement rate limiting to prevent abuse
+4. **Monitoring**: Set up logging and alerting
+5. **High Availability**: Use multiple instances with load balancing
+
+### Deployment Options
+
+**Option 1: Ngrok (Development/Testing)**
+```bash
+export NGROK_AUTHTOKEN="your_token"
+./scripts/start_webhook.sh
+# URL will be displayed in console
+```
+
+**Option 2: Cloudflare Tunnel (Production)**
+```bash
+# Install cloudflared
+brew install cloudflared
+
+# Authenticate
+cloudflared tunnel login
+
+# Create tunnel
+cloudflared tunnel create adw-webhook
+
+# Run tunnel
+cloudflared tunnel run --url http://localhost:8001 adw-webhook
+```
+
+**Option 3: Reverse Proxy (Production)**
+```nginx
+# nginx configuration
+server {
+    listen 443 ssl;
+    server_name webhook.yourcompany.com;
+
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    location /gh-webhook {
+        proxy_pass http://localhost:8001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
 
 ## Technical Details
 
