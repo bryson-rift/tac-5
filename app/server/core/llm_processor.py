@@ -14,7 +14,7 @@ def generate_sql_with_openai(query_text: str, schema_info: Dict[str, Any]) -> st
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set")
         
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(api_key=api_key, timeout=60.0)
         
         # Format schema for prompt
         schema_description = format_schema_for_prompt(schema_info)
@@ -170,7 +170,7 @@ def generate_test_query_with_openai(schema_info: Dict[str, Any]) -> str:
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set")
 
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(api_key=api_key, timeout=60.0)
 
         # Format schema for prompt
         schema_description = format_schema_for_prompt(schema_info)
