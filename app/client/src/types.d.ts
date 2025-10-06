@@ -70,6 +70,16 @@ interface InsightsResponse {
   error?: string;
 }
 
+// Generate Test Query Types
+interface GenerateTestQueryRequest {
+  // Empty - no input needed
+}
+
+interface GenerateTestQueryResponse {
+  query: string;
+  error?: string;
+}
+
 // Health Check Types
 interface HealthCheckResponse {
   status: "ok" | "error";

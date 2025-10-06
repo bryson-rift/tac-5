@@ -6,6 +6,7 @@ import { api } from './api/client'
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
   initializeQueryInput();
+  initializeGenerateTestQuery();
   initializeFileUpload();
   initializeModal();
   loadDatabaseSchema();
@@ -45,6 +46,45 @@ function initializeQueryInput() {
   queryInput.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       queryButton.click();
+    }
+  });
+}
+
+// Generate Test Query Functionality
+function initializeGenerateTestQuery() {
+  const generateButton = document.getElementById('generate-test-query-button') as HTMLButtonElement;
+  const queryInput = document.getElementById('query-input') as HTMLTextAreaElement;
+
+  // Track if a request is in progress to prevent multiple simultaneous calls
+  let isGenerating = false;
+
+  generateButton.addEventListener('click', async () => {
+    // Prevent multiple simultaneous requests
+    if (isGenerating) return;
+
+    isGenerating = true;
+    generateButton.disabled = true;
+    generateButton.classList.add('loading');
+    const originalText = generateButton.textContent;
+    generateButton.textContent = 'Generating...';
+
+    try {
+      const response = await api.generateTestQuery();
+
+      if (response.error) {
+        displayError(response.error);
+      } else {
+        // Populate the query input field with the generated query
+        queryInput.value = response.query;
+        queryInput.focus();
+      }
+    } catch (error) {
+      displayError(error instanceof Error ? error.message : 'Failed to generate test query');
+    } finally {
+      isGenerating = false;
+      generateButton.disabled = false;
+      generateButton.classList.remove('loading');
+      generateButton.textContent = originalText;
     }
   });
 }

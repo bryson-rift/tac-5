@@ -72,6 +72,17 @@ export const api = {
     });
   },
   
+  // Generate test query
+  async generateTestQuery(): Promise<GenerateTestQueryResponse> {
+    return apiRequest<GenerateTestQueryResponse>('/generate-test-query', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
+    });
+  },
+
   // Health check
   async healthCheck(): Promise<HealthCheckResponse> {
     return apiRequest<HealthCheckResponse>('/health');

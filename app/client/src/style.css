@@ -87,6 +87,7 @@ h2 {
 /* Buttons */
 .primary-button,
 .secondary-button,
+.generate-test-query-button,
 .toggle-button {
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
@@ -122,6 +123,38 @@ h2 {
 .secondary-button:hover {
   background: var(--primary-color);
   color: white;
+}
+
+.generate-test-query-button {
+  background: #dc3545;
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.generate-test-query-button:hover:not(:disabled) {
+  background: #c82333;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+}
+
+.generate-test-query-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.generate-test-query-button.loading {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 .toggle-button {
