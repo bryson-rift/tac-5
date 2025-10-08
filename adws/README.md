@@ -487,42 +487,6 @@ export NGROK_AUTHTOKEN="your_token"
 # URL will be displayed in console
 ```
 
-**Option 2: Cloudflare Tunnel (Production)**
-```bash
-# Install cloudflared
-brew install cloudflared
-
-# Authenticate
-cloudflared tunnel login
-
-# Create tunnel
-cloudflared tunnel create adw-webhook
-
-# Run tunnel
-cloudflared tunnel run --url http://localhost:8001 adw-webhook
-```
-
-**Option 3: Reverse Proxy (Production)**
-```nginx
-# nginx configuration
-server {
-    listen 443 ssl;
-    server_name webhook.yourcompany.com;
-
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
-
-    location /gh-webhook {
-        proxy_pass http://localhost:8001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
 ## Technical Details
 
 ### Core Components
