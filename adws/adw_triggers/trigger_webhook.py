@@ -42,9 +42,20 @@ from adw_modules.port_manager import (
     find_available_port,
     get_port_info
 )
+from adw_modules.webhook_manager import configure_webhook
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from repository root
+# Walk up to find .env file
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(os.path.dirname(current_dir))  # Go up to repo root
+env_path = os.path.join(root_dir, '.env')
+
+if os.path.exists(env_path):
+    load_dotenv(env_path)
+    print(f"✅ Loaded .env from: {env_path}")
+else:
+    load_dotenv()  # Try default search
+    print("⚠️  No .env found at repo root, using defaults")
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description="ADW Webhook Trigger Server")
@@ -63,7 +74,6 @@ app = FastAPI(title="ADW Webhook Trigger", description="GitHub webhook endpoint 
 webhook_start_time = time.time()
 processed_webhooks_count = 0
 ngrok_url = None
-ngrok_manager = None
 
 def handle_port_conflict(port: int, max_retries: int = 3) -> int:
     """
@@ -108,9 +118,7 @@ def graceful_shutdown(signum=None, frame=None):
     print("\n🛑 Shutting down webhook server gracefully...")
 
     # Cleanup ngrok if running
-    if ngrok_manager:
-        print("   Closing ngrok tunnel...")
-        ngrok_manager.stop_tunnel()
+    subprocess.run(["killall", "ngrok"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     # Log final stats
     uptime = time.time() - webhook_start_time
@@ -135,31 +143,100 @@ except RuntimeError as e:
 print(f"🚀 Starting ADW Webhook Trigger on port {PORT}")
 
 # Setup ngrok tunnel if requested
-if args.tunnel or os.getenv("NGROK_AUTHTOKEN"):
+if args.tunnel:
+    import requests
+
+    # Check for ngrok authtoken
+    ngrok_token = os.getenv("NGROK_AUTHTOKEN")
+    if not ngrok_token:
+        print("❌ ERROR: NGROK_AUTHTOKEN not found in environment")
+        print("   Add NGROK_AUTHTOKEN to your .env file or run:")
+        print("   export NGROK_AUTHTOKEN='your_token_here'")
+        sys.exit(1)
+
+    # Check if ngrok is installed
     try:
-        from ngrok_manager import NgrokManager
+        subprocess.run(["ngrok", "version"], capture_output=True, check=True, timeout=2)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("❌ ERROR: ngrok is not installed")
+        print("   Install with: brew install ngrok (macOS)")
+        print("   Or download from: https://ngrok.com/download")
+        sys.exit(1)
 
-        print("🌐 Setting up ngrok tunnel...")
-        ngrok_manager = NgrokManager(PORT)
+    print("🌐 Starting ngrok tunnel...")
+    print(f"   Port: {PORT}")
+    print(f"   Token: {ngrok_token[:10]}...")
 
-        if ngrok_manager.is_installed() and ngrok_manager.is_configured():
-            tunnel_url = ngrok_manager.start_tunnel()
-            if tunnel_url:
-                ngrok_url = tunnel_url
-                webhook_url = ngrok_manager.get_webhook_url()
-                print(f"✅ Webhook accessible at: {webhook_url}")
-                print(f"   Configure this URL in GitHub webhook settings")
-            else:
-                print("⚠️  Failed to start ngrok tunnel, continuing with local-only access")
-        else:
-            if not ngrok_manager.is_installed():
-                print("⚠️  ngrok not installed, continuing with local-only access")
-            else:
-                print("⚠️  ngrok not configured (missing NGROK_AUTHTOKEN), continuing with local-only access")
-    except ImportError:
-        print("⚠️  ngrok_manager module not found, continuing with local-only access")
-    except Exception as e:
-        print(f"⚠️  Error setting up ngrok: {e}, continuing with local-only access")
+    # Kill any existing ngrok
+    subprocess.run(["killall", "ngrok"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(1)
+
+    # Start ngrok with explicit authtoken
+    ngrok_proc = subprocess.Popen(
+        ["ngrok", "http", str(PORT), "--authtoken", ngrok_token],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+
+    # Wait for tunnel to establish
+    print("   Waiting for tunnel to establish...")
+    max_attempts = 10
+    for attempt in range(max_attempts):
+        time.sleep(1)
+
+        # Check if ngrok process died
+        if ngrok_proc.poll() is not None:
+            stdout, stderr = ngrok_proc.communicate()
+            print(f"❌ ERROR: ngrok process died")
+            print(f"   stderr: {stderr}")
+            sys.exit(1)
+
+        try:
+            resp = requests.get("http://localhost:4040/api/tunnels", timeout=1)
+            if resp.status_code == 200:
+                tunnels = resp.json().get("tunnels", [])
+                for tunnel in tunnels:
+                    if tunnel.get("proto") == "https":
+                        ngrok_url = tunnel.get("public_url")
+                        webhook_url = f"{ngrok_url}/gh-webhook"
+
+                        print(f"\n✅ Ngrok tunnel established!")
+                        print(f"   Public URL: {ngrok_url}")
+                        print(f"   Webhook URL: {webhook_url}")
+
+                        # Automatically configure GitHub webhook
+                        print(f"\n🔧 Configuring GitHub webhook...")
+                        try:
+                            if configure_webhook(webhook_url):
+                                print(f"\n✅ GitHub webhook configured automatically!")
+                                print(f"   The webhook is now active and listening for events")
+                            else:
+                                print(f"\n⚠️  Failed to auto-configure webhook")
+                                print(f"   Please configure manually in GitHub:")
+                                print(f"   1. Go to Settings → Webhooks in your repo")
+                                print(f"   2. Add webhook URL: {webhook_url}")
+                                print(f"   3. Select 'Issues' and 'Issue comments' events")
+                        except Exception as e:
+                            print(f"\n⚠️  Webhook auto-configuration error: {e}")
+                            print(f"   Configure manually at: {webhook_url}")
+
+                        print()
+                        break
+                if ngrok_url:
+                    break
+        except requests.exceptions.RequestException:
+            pass
+
+    if not ngrok_url:
+        print(f"❌ ERROR: Failed to establish ngrok tunnel after {max_attempts} attempts")
+        print("   Check ngrok logs: ngrok logs")
+        sys.exit(1)
+elif os.getenv("NGROK_AUTHTOKEN"):
+    print("📡 Ngrok token found but --tunnel not specified")
+    print("   Running in local mode. Use --tunnel flag to enable ngrok")
+else:
+    print("📡 Running in local-only mode (no ngrok tunnel)")
+    print("   To enable tunnel: add NGROK_AUTHTOKEN to .env and use --tunnel flag")
 
 # Bot identifier to prevent webhook loops
 ADW_BOT_IDENTIFIER = "[ADW-BOT]"
@@ -323,11 +400,6 @@ async def status():
     uptime = time.time() - webhook_start_time
     uptime_str = f"{int(uptime // 3600)}h {int((uptime % 3600) // 60)}m {int(uptime % 60)}s"
 
-    # Get ngrok tunnel status if available
-    tunnel_status = None
-    if ngrok_manager:
-        tunnel_status = ngrok_manager.get_tunnel_status()
-
     return {
         "status": "running",
         "service": "adw-webhook-trigger",
@@ -345,12 +417,7 @@ async def status():
         "tunnel": {
             "enabled": ngrok_url is not None,
             "url": ngrok_url,
-            "webhook_url": f"{ngrok_url}/gh-webhook" if ngrok_url else None,
-            "status": tunnel_status
-        } if ngrok_manager else {
-            "enabled": False,
-            "url": None,
-            "webhook_url": f"http://localhost:{PORT}/gh-webhook"
+            "webhook_url": f"{ngrok_url}/gh-webhook" if ngrok_url else f"http://localhost:{PORT}/gh-webhook"
         },
         "endpoints": {
             "webhook": "/gh-webhook",

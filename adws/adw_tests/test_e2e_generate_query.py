@@ -1,6 +1,19 @@
-#!/usr/bin/env python3
-"""E2E Test: Generate Test Query Button"""
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "playwright",
+# ]
+# ///
+
+"""E2E Test: Generate Test Query Button
+
+Standalone E2E test that validates the Generate Test Query button functionality.
+Run directly with: uv run adws/adw_tests/test_e2e_generate_query.py
+"""
+
 import json
+import sys
 import time
 from playwright.sync_api import sync_playwright, expect
 
@@ -262,3 +275,6 @@ if __name__ == "__main__":
     print("TEST RESULT:")
     print("="*80)
     print(json.dumps(result, indent=2))
+
+    # Exit with appropriate code
+    sys.exit(0 if result["status"] == "passed" else 1)

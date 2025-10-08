@@ -201,6 +201,10 @@ If port 8001 is in use, the server will:
 2. Find an alternative port if needed
 3. Display clear status messages
 
+### trigger_webhook.py - Real-time GitHub Events
+
+Provides real-time GitHub webhook processing with automatic tunnel and webhook configuration.
+
 **Ngrok Integration:**
 ```bash
 # Install ngrok (if not already installed)
@@ -217,6 +221,34 @@ export NGROK_DOMAIN="your-domain.ngrok.io"
 # Start with tunnel
 uv run adw_triggers/trigger_webhook.py --tunnel
 ```
+
+**Features:**
+- **Automatic GitHub Configuration**: Uses `webhook_manager.py` to auto-configure webhooks via gh CLI
+- **Port Management**: Automatically handles port conflicts and finds alternatives
+- **Ngrok Tunnel**: Creates secure public URL for GitHub to reach your local server
+- **Real-time Processing**: Instant response to GitHub events (no polling delay)
+- **Loop Prevention**: Ignores ADW-BOT comments to prevent infinite loops
+- **Health Monitoring**: Built-in health check and status endpoints
+
+**Webhook Manager (`adw_modules/webhook_manager.py`):**
+```bash
+# List all webhooks
+uv run adw_modules/webhook_manager.py list
+
+# Clean up old webhooks
+uv run adw_modules/webhook_manager.py cleanup
+
+# Manually configure webhook
+uv run adw_modules/webhook_manager.py configure <webhook_url>
+```
+
+**Security Module (`adw_modules/webhook_security.py`):**
+- Provides signature validation for webhook payloads
+- Generates secure webhook secrets
+- Prevents unauthorized webhook calls (when configured)
+
+**Production Deployment:**
+For production deployment options (Cloudflare Tunnel, nginx reverse proxy, GitHub App), see [WEBHOOK_PRODUCTION.md](WEBHOOK_PRODUCTION.md).
 
 ## How ADW Works
 
@@ -280,11 +312,34 @@ uv run adw_triggers/trigger_cron.py
 
 ### Deploy webhook for instant response
 ```bash
-# Start webhook server
-uv run adw_triggers/trigger_webhook.py
-# Configure in GitHub settings
-# Issues processed immediately on creation
+# Start webhook server with automatic ngrok tunnel and GitHub configuration
+uv run adw_triggers/trigger_webhook.py --tunnel
+
+# This will:
+# 1. Start FastAPI webhook server on port 8001
+# 2. Create ngrok tunnel for public access
+# 3. Automatically configure GitHub webhook (no manual setup needed!)
+# 4. Display webhook URL and status
+
+# Monitor webhook activity:
+curl http://localhost:8001/status  # Server status and metrics
+curl http://localhost:8001/health  # Health check
 ```
+
+**Webhook Auto-Configuration:**
+The system uses `gh` CLI to automatically:
+- Check for existing ADW webhooks
+- Update webhook URL if it already exists
+- Create new webhook if none exists
+- Configure proper events (issues, issue_comments)
+
+**Triggering Workflows via GitHub:**
+Add these keywords to issues or comments:
+- `adw_plan` - Generate plan only
+- `adw_build <adw_id>` - Build from existing plan
+- `adw_test` - Run tests
+- `adw_plan_build` - Plan and build
+- `adw_plan_build_test` - Full pipeline
 
 ## Troubleshooting
 

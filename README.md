@@ -231,12 +231,79 @@ cd adws/
 uv run trigger_cron.py
 ```
 
-#### 3. Webhook Server
-Start a webhook server for real-time GitHub event processing:
+#### 3. Webhook Server (Recommended)
+Start a webhook server for real-time GitHub event processing with automatic ngrok tunnel:
 ```bash
 cd adws/
-uv run trigger_webhook.py
+uv run adw_triggers/trigger_webhook.py --tunnel
 ```
+
+The webhook server provides automatic GitHub configuration and real-time event processing.
+
+### GitHub Webhook Integration
+
+The ADW webhook system provides real-time GitHub event processing with automatic configuration:
+
+#### Prerequisites for Webhooks
+- **Ngrok account**: Sign up at [ngrok.com](https://ngrok.com)
+- **Ngrok installed**: `brew install ngrok` (macOS)
+- **Ngrok auth token**: Add to `.env` file:
+  ```bash
+  NGROK_AUTHTOKEN=your_token_here
+  ```
+
+#### Starting the Webhook Server
+```bash
+cd adws/
+uv run adw_triggers/trigger_webhook.py --tunnel
+```
+
+This will:
+1. Start a FastAPI webhook server on port 8001
+2. Create an ngrok tunnel to expose it publicly
+3. **Automatically configure** the GitHub webhook in your repository
+4. Display the public webhook URL for monitoring
+
+#### Triggering ADW Workflows
+
+Create GitHub issues or comments with these keywords to trigger workflows:
+
+**In Issue Body (when creating new issues):**
+- `adw_plan` - Generate an implementation plan only
+- `adw_build <adw_id>` - Build from existing plan (requires ADW ID)
+- `adw_test` - Run tests for an implementation
+- `adw_plan_build` - Plan and build in sequence
+- `adw_plan_build_test` - Complete workflow (plan, build, test)
+
+**Example Issue:**
+```markdown
+Title: Add dark mode support
+Body:
+Add a dark mode toggle to the application settings.
+Users should be able to switch between light and dark themes.
+
+adw_plan_build
+```
+
+**In Issue Comments (for existing issues):**
+```markdown
+Let's implement this feature now.
+adw_plan_build_test
+```
+
+#### Monitoring Webhook Activity
+
+- **Server Status**: `http://localhost:8001/status`
+- **Health Check**: `http://localhost:8001/health`
+- **GitHub Webhook Deliveries**: Check Settings → Webhooks in your repository
+- **Logs**: Check `agents/<adw_id>/` directories for execution logs
+
+#### Security Notes
+
+- The webhook automatically ignores ADW-BOT comments to prevent infinite loops
+- Ngrok URLs change on restart unless using a reserved domain
+- The system automatically updates webhook URLs when restarting
+- For production, consider using Cloudflare Tunnel or a permanent webhook URL
 
 ### How ADW Works
 
