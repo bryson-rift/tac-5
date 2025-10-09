@@ -70,7 +70,7 @@ class GitHubMilestone(BaseModel):
 class GitHubComment(BaseModel):
     """GitHub comment model."""
 
-    id: str
+    id: Optional[str] = None  # GitHub CLI doesn't always return comment IDs
     author: GitHubUser
     body: str
     created_at: datetime = Field(alias="createdAt")
